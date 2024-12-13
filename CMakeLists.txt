@@ -4,4 +4,4 @@ project(MEPHI_4KURS_C C)
 set(CMAKE_C_STANDARD 11)
 
 add_executable(MEPHI_4KURS_C
-        lab3.2.c)
+        lab4/lab4.c)
