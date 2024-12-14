@@ -1,6 +1,7 @@
 #include <windows.h>
 #include <stdio.h>
 #include <tlhelp32.h>
+#include <winternl.h>
 
 void create_process(char *cmdLine) {
     STARTUPINFO si;
@@ -91,132 +92,88 @@ void createThreads(int threads_num) {
     printf("All threads are completed.\n");
 }
 
-typedef struct _UNICODE_STRING {
-    USHORT Length;
-    USHORT MaximumLength;
-    PWSTR Buffer;
-} UNICODE_STRING;
-
-typedef struct _LDR_DATA_TABLE_ENTRY {
-    LIST_ENTRY InLoadOrderLinks;
-    PVOID DllBase;
-    UNICODE_STRING FullDllName;
-    UNICODE_STRING BaseDllName;
-    ULONG Flags;
-    SHORT LoadCount;
-    SHORT TlsIndex;
-    LIST_ENTRY HashLinks;
-    ULONG TimeDateStamp;
-} LDR_DATA_TABLE_ENTRY, *PLDR_DATA_TABLE_ENTRY;
-
-typedef struct _PEB_LDR_DATA {
-    ULONG Length;
-    BOOLEAN Initialized;
-    HANDLE SsHandle;
-    LIST_ENTRY InLoadOrderModuleList;
-} PEB_LDR_DATA, *PPEB_LDR_DATA;
-
-typedef struct _PEB {
-    BOOLEAN InheritedAddressSpace;
-    BOOLEAN ReadImageFileExecOptions;
-    BOOLEAN BeingDebugged;
-    BOOLEAN Spare;
-    HANDLE Mutant;
-    PVOID ImageBaseAddress;
-    PPEB_LDR_DATA Ldr;
-} PEB, *PPEB;
-
-typedef struct _PROCESS_BASIC_INFORMATION {
-    PVOID Reserved1;
-    PPEB PebBaseAddress;
-    PVOID Reserved2[2];
-    ULONG_PTR UniqueProcessId;
-    PVOID Reserved3;
-} PROCESS_BASIC_INFORMATION;
-
 typedef NTSTATUS(WINAPI *NtQueryInformationProcess_t)(
     HANDLE, ULONG, PVOID, ULONG, PULONG);
 
-void displayProcessModules() {
-    HMODULE hNtdll = LoadLibrary("ntdll.dll");
-    if (!hNtdll) {
-        printf("Error: failed to upload ntdll.dll.\n");
-        return;
-    }
-
+void displayCurrentProcessModules() {
+    HANDLE hProcess = GetCurrentProcess();
+    HMODULE hNtdll = GetModuleHandleA("ntdll.dll");
     NtQueryInformationProcess_t NtQueryInformationProcess =
         (NtQueryInformationProcess_t)GetProcAddress(hNtdll, "NtQueryInformationProcess");
     if (!NtQueryInformationProcess) {
-        printf("Error: couldn't get the address NtQueryInformationProcess.\n");
+        printf("Error: couldn't get the address of NtQueryInformationProcess.\n");
         FreeLibrary(hNtdll);
-        return;
-    }
-
-    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, GetCurrentProcessId());
-    if (!hProcess) {
-        printf("Error: the process could not be opened.\n");
-        FreeLibrary(hNtdll);
-        return;
-    }
-
-    PROCESS_BASIC_INFORMATION pbi;
-    ULONG returnLength;
-    NTSTATUS status = NtQueryInformationProcess(hProcess, 0, &pbi, sizeof(pbi), &returnLength);
-    if (status != 0) {
-        printf("Error: NtQueryInformationProcess returned 0x%X\n", status);
         CloseHandle(hProcess);
+        return;
+    }
+    PROCESS_BASIC_INFORMATION pbi;
+    NTSTATUS status = NtQueryInformationProcess(hProcess, 0, &pbi, sizeof(pbi), NULL);
+    if (!NT_SUCCESS(status)) {
+        printf("Error: NtQueryInformationProcess failed with status 0x%X\n", status);
         FreeLibrary(hNtdll);
+        CloseHandle(hProcess);
         return;
     }
 
     PEB peb;
     if (!ReadProcessMemory(hProcess, pbi.PebBaseAddress, &peb, sizeof(peb), NULL)) {
-        printf("Error: couldn't read PEB.\n");
-        CloseHandle(hProcess);
+        printf("Error: couldn't read PEB. Error code: %lu\n", GetLastError());
         FreeLibrary(hNtdll);
+        CloseHandle(hProcess);
         return;
     }
-
     PEB_LDR_DATA ldrData;
     if (!ReadProcessMemory(hProcess, peb.Ldr, &ldrData, sizeof(ldrData), NULL)) {
-        printf("Error: couldn't read PEB_LDR_DATA.\n");
-        CloseHandle(hProcess);
+        printf("Error: couldn't read PEB_LDR_DATA. Error code: %lu\n", GetLastError());
         FreeLibrary(hNtdll);
+        CloseHandle(hProcess);
         return;
     }
 
-    LIST_ENTRY *head = ldrData.InLoadOrderModuleList.Flink;
-    LIST_ENTRY *current = head;
+    LIST_ENTRY *head = ldrData.InMemoryOrderModuleList.Flink;
+    if (!head) {
+        printf("Error: Module list is empty.\n");
+        FreeLibrary(hNtdll);
+        CloseHandle(hProcess);
+        return;
+    }
 
+    LIST_ENTRY *current = head;
+    CloseHandle(hProcess);
+    FreeLibrary(hNtdll);
     do {
         LDR_DATA_TABLE_ENTRY moduleEntry;
         if (!ReadProcessMemory(hProcess, current, &moduleEntry, sizeof(moduleEntry), NULL)) {
-            printf("Error: the module could not be read.\n");
+            printf("Error: couldn't read module entry. Error code: %lu\n", GetLastError());
+            break;
+        }
+        UNICODE_STRING fullDllName;
+        if (!ReadProcessMemory(hProcess, moduleEntry.FullDllName.Buffer, &fullDllName, moduleEntry.FullDllName.Length, NULL)) {
+            printf("Error: couldn't read UNICODE_STRING. Error code: %lu\n", GetLastError());
+            break;
+        }
+        printf("Module Name: %S\n",moduleEntry.FullDllName.Buffer);
+
+        current = current->Flink;
+        if (current == NULL) {
+            printf("Error: Flink is NULL. Stopping iteration.\n");
             break;
         }
 
-        wchar_t moduleName[256] = L"<Unknown>";
-        if (moduleEntry.BaseDllName.Buffer && ReadProcessMemory(hProcess, moduleEntry.BaseDllName.Buffer, moduleName, moduleEntry.BaseDllName.Length, NULL)) {
-            moduleName[moduleEntry.BaseDllName.Length / sizeof(wchar_t)] = L'\0';
-            wprintf(L"Module: %s\n", moduleName);
-        } else {
-            printf("Error: the module name could not be read. Error code: %lu\n", GetLastError());
-        }
-        current = moduleEntry.InLoadOrderLinks.Flink;
     } while (current != head);
-
     CloseHandle(hProcess);
     FreeLibrary(hNtdll);
 }
+
 
 int main() {
     int choice;
     printf("Select a task:\n");
     printf("1. Creating a process:\n");
     printf("2. Iterating through existing processes\n");
-    printf("3. Creating streams\n");
+    printf("3. Creating threads\n");
     printf("4. Displaying information about processes\n");
-    printf("Enter the task number: ");
+    printf("Enter the task number: \n");
     scanf("%d", &choice);
     switch (choice) {
         case 1:
@@ -230,7 +187,7 @@ int main() {
             createThreads(3);
         break;
         case 4:
-            displayProcessModules();
+            displayCurrentProcessModules();
         break;
         default:
             printf("Wrong choice.\n");
