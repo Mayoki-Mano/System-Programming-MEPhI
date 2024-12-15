@@ -78,7 +78,7 @@ void createThreads(int threads_num) {
         );
 
         if (!threads[i]) {
-            printf("Error: failed to create a stream %d\n", i);
+            printf("Error: failed to create a thread %d\n", i);
             return;
         }
     }
