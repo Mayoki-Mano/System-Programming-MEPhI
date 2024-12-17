@@ -4,6 +4,7 @@
 
 #define MAX_ITEMS 10 // Maximum size of the list
 #define NUMBER_OF_THREADS 3 // Number of threads for task 3
+
 typedef struct {
     int buffer[MAX_ITEMS];
     int head;
@@ -23,7 +24,8 @@ int queue_remove(Queue *q) {
     q->count--;
     return item;
 }
-volatile BOOL exitFlag = FALSE;  // Global flag to signal threads to exit
+
+volatile BOOL exitFlag = FALSE; // Global flag to signal threads to exit
 Queue globalQueue;
 int counter1 = 0, counter2 = 0, counter3 = 0;
 HANDLE mutex; // Mutex for synchronization
@@ -73,6 +75,7 @@ HANDLE file_write; // File handle for writing
 HANDLE file_read; // File handle for reading
 HANDLE semaphore;
 BOOL semaphoreFree = TRUE;
+
 DWORD WINAPI writer(LPVOID param) {
     int id = (int) (size_t) param;
     char buffer[256];
@@ -83,7 +86,7 @@ DWORD WINAPI writer(LPVOID param) {
         if (exitFlag)
             return 0;
         DWORD bytesWritten;
-        BOOL writeResult = WriteFile(file_write, buffer, (DWORD)strlen(buffer), &bytesWritten, NULL);
+        BOOL writeResult = WriteFile(file_write, buffer, (DWORD) strlen(buffer), &bytesWritten, NULL);
         if (writeResult && bytesWritten == strlen(buffer)) {
             printf("Writer %d wrote data.\n", id);
         } else {
@@ -133,32 +136,32 @@ DWORD WINAPI reader(LPVOID param) {
 }
 
 DWORD WINAPI thread_counter(LPVOID param) {
-    size_t* params = (size_t*)param;
-    int counter = (int)(size_t)params[0];  // Ссылка на счетчик
-    int speed = (int)(size_t)params[1];  // Скорость потока
-    int event_trigger = (int)(size_t)params[2];  // Порог события
-    int thread_id = (int)(size_t)params[3];  // Идентификатор потока
+    size_t *params = (size_t *) param;
+    int counter = (int) (size_t) params[0]; // Ссылка на счетчик
+    int speed = (int) (size_t) params[1]; // Скорость потока
+    int event_trigger = (int) (size_t) params[2]; // Порог события
+    int thread_id = (int) (size_t) params[3]; // Идентификатор потока
     while (!exitFlag) {
-        if (thread_id==1) {
+        if (thread_id == 1) {
             WaitForSingleObject(RC, INFINITE);
             if (semaphoreFree) {
                 ReleaseMutex(RC);
                 ++counter;
-                printf("Thread [%d]: counter = %d\n",thread_id, counter);
+                printf("Thread [%d]: counter = %d\n", thread_id, counter);
                 Sleep(speed); // Задержка зависит от скорости потока
                 continue;
-            }else{
+            } else {
                 ReleaseMutex(RC);
                 WaitForSingleObject(semaphore, INFINITE); // Ожидаем, пока не возобновят поток
                 continue;
             }
         }
         counter++;
-        printf("Thread [%d]: counter = %d\n",thread_id, counter);
+        printf("Thread [%d]: counter = %d\n", thread_id, counter);
         if (counter == event_trigger) {
             WaitForSingleObject(RC, INFINITE); // Захват мьютекса записи semaphoreFree
             semaphoreFree = !semaphoreFree;
-            ReleaseSemaphore(semaphore,semaphoreFree, NULL);
+            ReleaseSemaphore(semaphore, semaphoreFree, NULL);
             ReleaseMutex(RC); // Освобождение мьютекса записи semaphoreFree
         }
         Sleep(speed); // Задержка зависит от скорости потока
@@ -171,8 +174,8 @@ int num_writers = 0, num_readers = 0;
 HANDLE *threads;
 
 void destructor() {
-    exitFlag = TRUE;  // Signal threads to exit
-    if (threads!=NULL) {
+    exitFlag = TRUE; // Signal threads to exit
+    if (threads != NULL) {
         for (int i = 0; i < num_writers + num_readers; i++) {
             if (threads[i]) {
                 WaitForSingleObject(threads[i], INFINITE);
@@ -214,7 +217,6 @@ void destructor() {
         num_consumers = 0;
     if (semaphore)
         CloseHandle(semaphore);
-
 }
 
 int main() {
@@ -303,10 +305,10 @@ int main() {
                 );
                 file_read = CreateFile(
                     "data.txt",
-                    GENERIC_READ,               // Режим доступа для чтения
+                    GENERIC_READ, // Режим доступа для чтения
                     FILE_SHARE_READ | FILE_SHARE_WRITE, // Разрешить другим потокам чтение и запись
                     NULL,
-                    OPEN_ALWAYS,                // Создать файл, если он не существует
+                    OPEN_ALWAYS, // Создать файл, если он не существует
                     FILE_ATTRIBUTE_NORMAL,
                     NULL
                 );
@@ -368,12 +370,12 @@ int main() {
                     destructor();
                     break;
                 }
-                size_t params1[4] = { (size_t)counter1, (size_t)100, (size_t)-1, (size_t)1 };
-                size_t params2[4] = { (size_t)counter2, (size_t)200, (size_t)50, (size_t)2 };
-                size_t params3[4] = { (size_t)counter3, (size_t)150, (size_t)250, (size_t)3 };
-                threads[0] = CreateThread(NULL, 0, thread_counter, (LPVOID)params1, 0, NULL);
-                threads[1] = CreateThread(NULL, 0, thread_counter, (LPVOID)params2, 0, NULL);
-                threads[2] = CreateThread(NULL, 0, thread_counter, (LPVOID)params3, 0, NULL);
+                size_t params1[4] = {(size_t) counter1, (size_t) 100, (size_t) -1, (size_t) 1};
+                size_t params2[4] = {(size_t) counter2, (size_t) 200, (size_t) 50, (size_t) 2};
+                size_t params3[4] = {(size_t) counter3, (size_t) 150, (size_t) 250, (size_t) 3};
+                threads[0] = CreateThread(NULL, 0, thread_counter, (LPVOID) params1, 0, NULL);
+                threads[1] = CreateThread(NULL, 0, thread_counter, (LPVOID) params2, 0, NULL);
+                threads[2] = CreateThread(NULL, 0, thread_counter, (LPVOID) params3, 0, NULL);
                 printf("Press any key to stop...\n");
                 getchar(); // Wait for user input
                 destructor();

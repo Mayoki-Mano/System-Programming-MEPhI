@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.29)
 project(MEPHI_4KURS_C C)
 
 set(CMAKE_C_STANDARD 11)
-
-add_executable(MEPHI_4KURS_C
-        lab5/lab5.c)
+#add_executable(Server lab6/lab6_socket_server.c)
+#add_executable(Client lab6/lab6_socket_client.c)
+add_executable(Server lab6/pipe_server.c)
+add_executable(Client1 lab6/pipe_client.c)
+add_executable(Client2 lab6/pipe_client.c)
+target_link_libraries(Server ws2_32)
+target_link_libraries(Client1 ws2_32)
+target_link_libraries(Client2 ws2_32)
