@@ -130,7 +130,6 @@ void LogDeviceDisconnection(LPCWSTR serialNumber) {
     snprintf(message, 256, "USB device disconnected: Serial Number: %s", serialNumberAnsi);
     LogEvent(message, EVENTLOG_INFORMATION_TYPE);
 }
-
 CONFIGRET CALLBACK NotificationCallback(HCMNOTIFICATION hNotify, PVOID Context, CM_NOTIFY_ACTION Action, PCM_NOTIFY_EVENT_DATA EventData, DWORD EventDataSize) {
     switch (Action) {
         case CM_NOTIFY_ACTION_DEVICEINTERFACEARRIVAL: {
