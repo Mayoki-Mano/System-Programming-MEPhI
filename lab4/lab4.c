@@ -109,7 +109,7 @@ void displayCurrentProcessModules() {
     PROCESS_BASIC_INFORMATION pbi;
     NTSTATUS status = NtQueryInformationProcess(hProcess, 0, &pbi, sizeof(pbi), NULL);
     if (!NT_SUCCESS(status)) {
-        printf("Error: NtQueryInformationProcess failed with status 0x%X\n", status);
+        printf("Error: NtQueryInformationProcess failed with status 0x%lX\n", status);
         FreeLibrary(hNtdll);
         CloseHandle(hProcess);
         return;
@@ -179,7 +179,7 @@ int main() {
         case 1:
             char cmdLine[] = "notepad.exe";
             create_process(cmdLine);
-        break;
+            break;
         case 2:
             process_enumeration();
         break;
