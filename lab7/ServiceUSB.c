@@ -24,8 +24,10 @@ void BlockUSBDeviceByKey(const LPCWSTR deviceKey) {
     HKEY hKey;
     DWORD dwDisposition;
     char errorMessage[256];
+    sprintf_s(errorMessage, sizeof(errorMessage), "try RegOpenKeyEx\n");
+    LogMessage(errorMessage);
     // Открытие ключа реестра
-    if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, USBSTOR_KEY_PATH, 0, KEY_WRITE, &hKey) == ERROR_SUCCESS) {
+    if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, USBSTOR_KEY_PATH, REG_OPTION_OPEN_LINK, KEY_ALL_ACCESS, &hKey) != ERROR_SUCCESS) {
         sprintf_s(errorMessage, sizeof(errorMessage), "Couldn't open registr key.\n");
         LogMessage(errorMessage);
         return;
@@ -33,9 +35,9 @@ void BlockUSBDeviceByKey(const LPCWSTR deviceKey) {
 
     // Открываем ключ устройства, используя его идентификатор
     HKEY deviceKeyHandle;
-    if (RegOpenKeyEx(hKey, deviceKey, 0, KEY_WRITE, &deviceKeyHandle) != ERROR_SUCCESS) {
+    if (RegOpenKeyEx(hKey, deviceKey, REG_OPTION_OPEN_LINK, KEY_ALL_ACCESS, &deviceKeyHandle) == ERROR_SUCCESS) {
         // Удаляем ключ устройства, что фактически "блокирует" его
-        if (RegDeleteKey(hKey, deviceKey) != ERROR_SUCCESS) {
+        if (RegDeleteKey(hKey, deviceKey) == ERROR_SUCCESS) {
             sprintf_s(errorMessage, sizeof(errorMessage), "Device blocked: %S\n", deviceKey);
             LogMessage(errorMessage);
         } else {
@@ -56,7 +58,7 @@ void RegisterEventSourceManually() {
     char *subkey = "SYSTEM\\CurrentControlSet\\Services\\EventLog\\Application\\USBMonitorService";
     char *eventMessageFile = "advapi32.dll";
     char *logFilePath = "C:\\ServiceLog.txt";
-    char * prohibitedSerialNumbers = "Disk&Rev_5.00#8&1f7b8582&0&_&0";
+    char * prohibitedSerialNumbers = "Disk&Rev_5.00#8&1f7b8582&0&_&0 Disk&Rev_5.00#6&1d017224&1&_&0 #5&22b8dd10";
     char errorMessage[256];
     // Создание раздела
     if (RegCreateKeyEx(HKEY_LOCAL_MACHINE, subkey, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
@@ -66,7 +68,7 @@ void RegisterEventSourceManually() {
                       (strlen(eventMessageFile) + 1) * sizeof(char));
         RegSetValueEx(hKey, "LogFilePath", 0, REG_EXPAND_SZ, (const BYTE*)logFilePath, (strlen(logFilePath) + 1) * sizeof(char));
         // Установка типов поддерживаемых событий
-        RegSetValueEx(hKey, "ProhibitedSerialNumbers",0, REG_EXPAND_SZ, (const BYTE*)prohibitedSerialNumbers, 256);
+        RegSetValueEx(hKey, "ProhibitedSerialNumbers",0, REG_EXPAND_SZ, (const BYTE*)prohibitedSerialNumbers, 256+strlen(prohibitedSerialNumbers));
         RegSetValueEx(hKey, "TypesSupported", 0, REG_DWORD,
                       (const BYTE*)&typesSupported, sizeof(DWORD));
 
@@ -137,27 +139,40 @@ CONFIGRET CALLBACK NotificationCallback(HCMNOTIFICATION hNotify, PVOID Context, 
             char message[256];
             char serialNumberAnsi[256];
             WideCharToMultiByte(CP_ACP, 0, serialNumber, -1, serialNumberAnsi, sizeof(serialNumberAnsi), NULL, NULL);
-            snprintf(message, 256, "ХУЙ1: %s", serialNumberAnsi);
+            snprintf(message, 256, "BIBA1: %s", serialNumberAnsi);
             LogMessage(message);
             HKEY hKey;
+            char errorMessage[256];
             char *subkey = "SYSTEM\\CurrentControlSet\\Services\\EventLog\\Application\\USBMonitorService";
-            RegCreateKeyEx(HKEY_LOCAL_MACHINE, subkey, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
-            char ProhibitedSerialNumbers[256];
-            DWORD dwSize = sizeof(ProhibitedSerialNumbers)/2;
-            RegQueryValueExW(hKey,
+            sprintf_s(errorMessage, sizeof(errorMessage), "PIP0: \n");
+            LogMessage(errorMessage);
+            RegCreateKeyEx(HKEY_LOCAL_MACHINE, subkey, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_READ, NULL, &hKey, NULL);
+            char ProhibitedSerialNumbers[1024];
+            sprintf_s(errorMessage, sizeof(errorMessage), "PIP1: \n");
+            LogMessage(errorMessage);
+            DWORD dwSize = sizeof(ProhibitedSerialNumbers);
+            sprintf_s(errorMessage, sizeof(errorMessage), "PIP2: \n");
+            LogMessage(errorMessage);
+            LSTATUS S = RegQueryValueExA(hKey,
                                 "ProhibitedSerialNumbers",
-                                NULL,
+                                0,
                                 NULL,
                                 (BYTE *)ProhibitedSerialNumbers,
                                 &dwSize);
-            char errorMessage[256];
             sprintf_s(errorMessage, sizeof(errorMessage), "ProhibitedSerialNumbers: %s\n", ProhibitedSerialNumbers);
             LogMessage(errorMessage);
-            if (strstr(serialNumberAnsi, ProhibitedSerialNumbers) != NULL) {
-                snprintf(message, 256, "ХУЙ2: %s", serialNumber);
-                LogMessage(message);
-                BlockUSBDeviceByKey(serialNumber);
-                break;
+            char buffer[1024];
+            strncpy(buffer,ProhibitedSerialNumbers,sizeof(buffer)-1);
+            buffer[sizeof(buffer)-1]='\0';
+            char * token = strtok(ProhibitedSerialNumbers, " ");
+            while (token!=NULL){
+                if (strstr(serialNumberAnsi, token) != NULL) {
+                    snprintf(message, 256, "BIBA2: %s", serialNumber);
+                    LogMessage(message);
+                    BlockUSBDeviceByKey(serialNumber);
+                    return CR_SUCCESS;
+                }else
+                    token= strtok(NULL," ");
             }
             LogDeviceConnection(serialNumber);
             break;

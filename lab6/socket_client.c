@@ -56,7 +56,7 @@ DWORD WINAPI sendMessages(SOCKET serverSocket) {
     FILE *file;
     char filename[256];
     while (1) {
-        memset(buffer, 0, BUFFER_SIZE);
+        ZeroMemory(buffer,BUFFER_SIZE);
         printf("Enter message (or 'file:<filename>' to send a file): \n");
         printf(">");
         fgets(buffer, BUFFER_SIZE, stdin);
@@ -64,7 +64,7 @@ DWORD WINAPI sendMessages(SOCKET serverSocket) {
 
         // Check if sending a file
         if (strncmp(buffer, "file:", 5) == 0) {
-            memcpy(filename, buffer+5, strlen(buffer+5));
+            memcpy(filename, buffer+5, strlen(filename));
             file = fopen(filename, "rb");
             if (!file) {
                 printf("Error opening file: %s\n", filename);

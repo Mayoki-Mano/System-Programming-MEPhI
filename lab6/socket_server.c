@@ -64,7 +64,7 @@ DWORD WINAPI sendMessages(SOCKET clientSocket) {
 
         // Check if sending a file
         if (strncmp(buffer, "file:", 5) == 0) {
-            memcpy(filename, buffer+5, strlen(buffer+5));
+            memcpy(filename, buffer+5, strlen(filename));
             file = fopen(filename, "rb");
             if (!file) {
                 printf("Error opening file: %s\n", filename);
