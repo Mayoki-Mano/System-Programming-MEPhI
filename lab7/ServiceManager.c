@@ -89,7 +89,7 @@ void RemoveService() {
 }
 
 void StartServiceManually() {
-    SC_HANDLE hSCManager = OpenSCManager(NULL, NULL, SC_MANAGER_CONNECT);
+    SC_HANDLE hSCManager = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (!hSCManager) {
         printf("Failed to open service manager: %d\n", GetLastError());
         return;

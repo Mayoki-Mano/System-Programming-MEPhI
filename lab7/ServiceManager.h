@@ -6,7 +6,7 @@
 #define SERVICE_NAME "USBMonitorService"
 #define SERVICE_DISPLAY_NAME "USB Monitoring Service"
 #define PROGRAM_PATH "C:\\Program Files\\USB.exe"
-
+#define BUF_LEN 1024
 
 void InstallService();
 
