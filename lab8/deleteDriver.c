@@ -573,72 +573,100 @@ CONST FLT_OPERATION_REGISTRATION Callbacks[] = {
 //  Filter Registration                                                     //
 //////////////////////////////////////////////////////////////////////////////
 
+CONST FLT_REGISTRATION FilterRegistration = {
+
+    sizeof( FLT_REGISTRATION ),         //  Size
+    FLT_REGISTRATION_VERSION,           //  Version
+    0,                                  //  Flags
+
+    Contexts,                           //  Context
+    Callbacks,                          //  Operation callbacks
+
+    DfUnload,                           //  MiniFilterUnload
+
+    DfInstanceSetup,                    //  InstanceSetup
+    DfInstanceQueryTeardown,            //  InstanceQueryTeardown
+    DfInstanceTeardownStart,            //  InstanceTeardownStart
+    DfInstanceTeardownComplete,         //  InstanceTeardownComplete
+    NULL,                               //  GenerateFileName
+    NULL,                               //  NormalizeNameComponent
+    NULL,                               //  NormalizeContextCleanup
+    DfTransactionNotificationCallback,  //  TransactionNotification
+    NULL                                //  NormalizeNameComponentEx
+
+};
 
 
 //////////////////////////////////////////////////////////////////////////////
 //  MiniFilter initialization and unload routines                           //
 //////////////////////////////////////////////////////////////////////////////
-#include <fltKernel.h>
 
-// Глобальная переменная для хранения дескриптора фильтра
-PFLT_FILTER gFilterHandle = NULL;
+NTSTATUS
+DriverEntry (
+    _In_ PDRIVER_OBJECT DriverObject,
+    _In_ PUNICODE_STRING RegistryPath
+    )
+/*++
 
-// Коллбэк для выгрузки фильтра (обязательный)
-NTSTATUS FilterUnloadCallback(FLT_FILTER_UNLOAD_FLAGS Flags) {
-    UNREFERENCED_PARAMETER(Flags);
-    DbgPrint("DeleteDriver: FilterUnloadCallback called\n");
-    FltUnregisterFilter(gFilterHandle);
-    gFilterHandle = NULL;
-    return STATUS_SUCCESS;
-}
+Routine Description:
 
-// Структура FLT_REGISTRATION
-const FLT_REGISTRATION FilterRegistration = {
-    sizeof(FLT_REGISTRATION),          // Size
-    FLT_REGISTRATION_VERSION,          // Version
-    0,                                 // Flags
-    NULL,                              // Context registration
-    NULL,                              // Operation registration
-    FilterUnloadCallback,              // FilterUnloadCallback
-    NULL,                              // InstanceSetupCallback
-    NULL,                              // InstanceQueryTeardownCallback
-    NULL,                              // InstanceTeardownStartCallback
-    NULL,                              // InstanceTeardownCompleteCallback
-    NULL,                              // GenerateFileNameCallback
-    NULL,                              // NormalizeNameComponentCallback
-    NULL                               // TransactionNotificationCallback
-};
+    This is the initialization routine for this miniFilter driver.  This
+    registers with FltMgr and initializes all global data structures.
 
-// Точка входа драйвера
-NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) {
+Arguments:
+
+    DriverObject - Pointer to driver object created by the system to
+        represent this driver.
+
+    RegistryPath - Unicode string identifying where the parameters for this
+        driver are located in the registry.
+
+Return Value:
+
+    Returns STATUS_SUCCESS.
+
+--*/
+{
     NTSTATUS status;
-    UNREFERENCED_PARAMETER(RegistryPath);
-    DbgPrint("DeleteDriver: Entering DriverEntry\n");
-    ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
-    DbgPrint("DeleteDriver: FilterRegistration.Size = %u, Version = %u, UnloadCallback = 0x%p\n",
-             FilterRegistration.Size, FilterRegistration.Version, FilterRegistration.FilterUnloadCallback);
-    // Логирование параметров
-    DbgPrint("DeleteDriver: Current IRQL = %u\n", KeGetCurrentIrql());
-    DbgPrint("DeleteDriver: DriverObject = 0x%p, FilterRegistration = 0x%p\n", DriverObject, &FilterRegistration);
-    // Регистрация фильтра
-    status = FltRegisterFilter(DriverObject, &FilterRegistration, &gFilterHandle);
-    ASSERT(NT_SUCCESS(status));
-    if (!NT_SUCCESS(status)) {
-        DbgPrint("DeleteDriver: FltRegisterFilter failed with status 0x%08x\n", status);
-        return status;
-    }
-    DbgPrint("DeleteDriver: FltRegisterFilter succeeded\n");
 
-    // Запуск фильтрации
-    status = FltStartFiltering(gFilterHandle);
-    if (!NT_SUCCESS(status)) {
-        DbgPrint("DeleteDriver: FltStartFiltering failed with status 0x%08x\n", status);
-        FltUnregisterFilter(gFilterHandle);
-        return status;
+    UNREFERENCED_PARAMETER( RegistryPath );
+
+    DF_DBG_PRINT( DFDBG_TRACE_ROUTINES,
+                  "delete!DriverEntry: Entered\n" );
+
+    //
+    //  Default to NonPagedPoolNx for non paged pool allocations where supported.
+    //
+
+    ExInitializeDriverRuntime( DrvRtPoolNxOptIn );
+
+    //
+    //  Register with FltMgr to tell it our callback routines
+    //
+
+    status = FltRegisterFilter( DriverObject,
+                                &FilterRegistration,
+                                &gFilterHandle );
+
+    ASSERT( NT_SUCCESS( status ) );
+
+    if (NT_SUCCESS( status )) {
+
+        //
+        //  Start filtering i/o
+        //
+
+        status = FltStartFiltering( gFilterHandle );
+
+        if (!NT_SUCCESS( status )) {
+
+            FltUnregisterFilter( gFilterHandle );
+        }
     }
-    DbgPrint("DeleteDriver: Driver loaded successfully\n");
+
     return status;
 }
+
 
 NTSTATUS
 DfUnload (
@@ -2718,7 +2746,19 @@ Return Value:
 
     return FLT_POSTOP_FINISHED_PROCESSING;
 }
-
+BOOLEAN anCondition(WCHAR* newFileName, WCHAR* oldFileName)
+{
+    // Проверяем, оканчивается ли новое имя на ".exe"
+    size_t len_new_name = wcslen(newFileName);
+    size_t len_old_name = wcslen(oldFileName);
+    if (_wcsicmp(newFileName + len_new_name - 4, L".exe") == 0) {
+        return TRUE; // Запрещаем переименование в .exe-файлы
+    }
+    if (len_old_name > 4 && _wcsicmp(oldFileName + len_old_name - 4, L".exe") == 0) {
+        return TRUE; // Запрещаем переименование .exe-файлов
+    }
+    return FALSE; // Разрешаем все остальные файлы
+}
 
 FLT_PREOP_CALLBACK_STATUS
 DfPreSetInfoCallback (
@@ -2768,20 +2808,52 @@ Return Value:
     NTSTATUS status;
     PDF_STREAM_CONTEXT streamContext = NULL;
     BOOLEAN race;
-
+    FILE_DISPOSITION_INFORMATION* info = NULL;
     UNREFERENCED_PARAMETER( FltObjects );
 
     PAGED_CODE();
-
+    DbgPrint("MiniFilter: Delete PRECALLBACK ENTERED! %d\n",Data->Iopb->Parameters.SetFileInformation.FileInformationClass);
     switch (Data->Iopb->Parameters.SetFileInformation.FileInformationClass) {
-
+        case FileRenameInformation:
+            WCHAR file_new_name[512] = { 0 };
+            PFILE_RENAME_INFORMATION renameInfo = Data->Iopb->Parameters.SetFileInformation.InfoBuffer;
+            memcpy(file_new_name, renameInfo->FileName, renameInfo->FileNameLength);
+            DbgPrint("renameInfo %ws\n", file_new_name);
+            PFLT_FILE_NAME_INFORMATION fileNameInfo;
+            status = FltGetFileNameInformation(Data, FLT_FILE_NAME_NORMALIZED | FLT_FILE_NAME_QUERY_DEFAULT, &fileNameInfo);
+            if (NT_SUCCESS(status)) {
+                status = FltParseFileNameInformation(fileNameInfo); // Разбираем структуру
+                if (NT_SUCCESS(status)) {
+                    DbgPrint("MiniFilter: OLD NAME FILE - %wZ\n", &fileNameInfo->Name);
+                }
+                if (anCondition(file_new_name, fileNameInfo->Name.Buffer))
+                {
+                    DbgPrint("Rename BLOCKED %ws\n", file_new_name);
+                    Data->IoStatus.Status = STATUS_ACCESS_DENIED;
+                    Data->IoStatus.Information = 0;//usually 0
+                    return FLT_PREOP_COMPLETE;
+                }
+                FltReleaseFileNameInformation(fileNameInfo); // Освобождаем память
+            DbgPrint("Rename allowed %ws\n", file_new_name);
         case FileDispositionInformation:
+
         case FileDispositionInformationEx:
 
             //
             //  We're interested when the file delete disposition changes.
             //
+            // Получаем структуру, переданную в запросе
+            info = (FILE_DISPOSITION_INFORMATION*)Data->Iopb->Parameters.SetFileInformation.InfoBuffer;
 
+            // Проверяем, пытаются ли удалить файл
+            if (info->DeleteFile) {
+                DbgPrint("MiniFilter: Delete file BLOCKED!\n");
+                Data->IoStatus.Status = STATUS_ACCESS_DENIED;
+                return FLT_PREOP_COMPLETE; // Полностью блокируем операцию
+            }
+
+
+            }
             status = DfGetOrSetContext( FltObjects,
                                         Data->Iopb->TargetFileObject,
                                         &streamContext,
@@ -3249,6 +3321,3 @@ Return Value:
 
     return STATUS_SUCCESS;
 }
-
-
-
