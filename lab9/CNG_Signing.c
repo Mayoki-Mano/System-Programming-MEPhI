@@ -61,10 +61,10 @@ void __cdecl wmain(
 
     //open an algorithm handle
     if(!NT_SUCCESS(status = BCryptOpenAlgorithmProvider(
-                                                &hHashAlg,
-                                                BCRYPT_SHA1_ALGORITHM,
-                                                NULL,
-                                                0)))
+                                                &hHashAlg, // [out] Указатель на хэндл провайдера
+                                                BCRYPT_SHA256_ALGORITHM , // [in]  Идентификатор алгоритма Строка (Unicode)
+                                                NULL, // [in, opt] Имя провайдера Если NULL, используется провайдер по умолчанию.
+                                                0))) // [in]  Флаги (режим шифрования и всякое)
     {
         wprintf(L"**** Error 0x%x returned by BCryptOpenAlgorithmProvider\n", status);
         goto Cleanup;
@@ -82,12 +82,12 @@ void __cdecl wmain(
 
     //calculate the size of the buffer to hold the hash object
     if(!NT_SUCCESS(status = BCryptGetProperty(
-                                        hHashAlg,
-                                        BCRYPT_OBJECT_LENGTH,
-                                        (PBYTE)&cbHashObject,
-                                        sizeof(DWORD),
-                                        &cbData,
-                                        0)))
+                                        hHashAlg, // [in]  Хэндл объекта (алгоритм, ключ и т.п.)
+                                        BCRYPT_OBJECT_LENGTH, // [in]  Имя свойства (строка-идентификатор)
+                                        (PBYTE)&cbHashObject, // [out] Буфер для данных свойства
+                                        sizeof(DWORD), // [in]  Размер буфера (в байтах)
+                                        &cbData, // [out] Число скопированных байт
+                                        0))) // [in]  Флаги (обычно 0)
     {
         wprintf(L"**** Error 0x%x returned by BCryptGetProperty\n", status);
         goto Cleanup;
@@ -124,13 +124,13 @@ void __cdecl wmain(
 
     //create a hash
     if(!NT_SUCCESS(status = BCryptCreateHash(
-                                        hHashAlg,
-                                        &hHash,
-                                        pbHashObject,
-                                        cbHashObject,
-                                        NULL,
-                                        0,
-                                        0)))
+                                        hHashAlg, // [in]  Хэндл алгоритма
+                                        &hHash, // [out] Указатель на хэндл хэш-объекта
+                                        pbHashObject, // [in]  Буфер для хэш-контекста (или NULL)
+                                        cbHashObject, // [in]  Размер буфера pbHashObject
+                                        NULL, // [in, opt] Ключ для HMAC (если используется)
+                                        0, // [in]  Размер ключа (в байтах)
+                                        0))) // [in]  Флаги (обычно 0)
     {
         wprintf(L"**** Error 0x%x returned by BCryptCreateHash\n", status);
         goto Cleanup;
@@ -176,7 +176,7 @@ void __cdecl wmain(
                                                 NCRYPT_ECDSA_P256_ALGORITHM,
                                                 L"my ecc key",
                                                 0,
-                                                0)))
+                                                NCRYPT_OVERWRITE_KEY_FLAG)))
     {
         wprintf(L"**** Error 0x%x returned by NCryptCreatePersistedKey\n", secStatus);
         goto Cleanup;

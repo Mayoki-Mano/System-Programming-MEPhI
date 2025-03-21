@@ -7,16 +7,16 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
 # Исходные файлы
-set(SOURCES lab9/CNG_Signing.c)
+set(SOURCES lab9/Enc_Dec_File.c)
 
 # Создание исполняемого файла
-add_executable(CNG_Signing ${SOURCES})
+add_executable(CNG ${SOURCES})
 
 # Линковка с необходимыми библиотеками
-target_link_libraries(CNG_Signing bcrypt ncrypt)
+target_link_libraries(CNG bcrypt ncrypt)
 
 # Установка свойств выходного файла
-set_target_properties(CNG_Signing PROPERTIES
+set_target_properties(CNG PROPERTIES
         SUFFIX ".exe"           # Выходной файл с расширением .exe
         OUTPUT_NAME "CNG"       # Имя выходного файла
 )
