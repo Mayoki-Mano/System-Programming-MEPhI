@@ -7,8 +7,8 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
 # Исходные файлы
-set(SOURCES lab9/Enc_Dec_File.c)
-
+set(SOURCES lab8/try_delete.c)
+set(BUILD_SHARED_LIBS OFF)  # Использовать статическую компоновку
 # Создание исполняемого файла
 add_executable(CNG ${SOURCES})
 
