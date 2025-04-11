@@ -1,0 +1,21 @@
+import "oaidl.idl";
+import "ocidl.idl";
+import "shobjidl.idl"; // содержит IShellExtInit и IContextMenu
+
+[
+  uuid(05f22fe4-d064-415c-855e-16c2723e57f6), // UUID библиотеки
+  version(1.0)
+]
+library ContextMenuHandlerLib
+{
+  importlib("stdole2.tlb");
+
+  [
+    uuid(8f27e153-676a-4ff5-9e7e-5899c1624f1b) // CLSID ContextMenuHandler
+  ]
+  coclass ContextMenuHandler
+  {
+    interface IShellExtInit;
+    interface IContextMenu;
+  };
+};
