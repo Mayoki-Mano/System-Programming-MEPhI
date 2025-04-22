@@ -2568,76 +2568,47 @@ DfPreCreateCallback (
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _Outptr_result_maybenull_ PVOID *CompletionContext
     )
-/*++
-
-Routine Description:
-
-    This routine is the pre-operation completion routine for
-    IRP_MJ_CREATE in this miniFilter.
-
-    In the pre-create phase we're concerned with creates with
-    FILE_DELETE_ON_CLOSE set, and in those cases we want to flag
-    this stream as a candidate for being deleted.
-
-Arguments:
-
-    Data - Pointer to the filter callbackData that is passed to us.
-
-    FltObjects - Pointer to the FLT_RELATED_OBJECTS data structure containing
-        opaque handles to this filter, instance, its associated volume and
-        file object.
-
-    CompletionContext - The context for the completion routine for this
-        operation.
-
-Return Value:
-
-    FLT_PREOP_SUCCESS_WITH_CALLBACK - When FILE_DELETE_ON_CLOSE is set and
-                                      a stream context is created.
-
-    FLT_PREOP_SUCCESS_NO_CALLBACK   - When FILE_DELETE_ON_CLOSE is not set
-                                      and no stream context is created.
-
---*/
 {
     PDF_STREAM_CONTEXT streamContext;
     NTSTATUS status;
 
-    UNREFERENCED_PARAMETER( FltObjects );
+    UNREFERENCED_PARAMETER(FltObjects);
 
     PAGED_CODE();
 
-    DF_DBG_PRINT( DFDBG_TRACE_ROUTINES,
-                  "delete!DfPreCreateCallback: Entered\n" );
+    DF_DBG_PRINT(DFDBG_TRACE_ROUTINES,
+                 "delete!DfPreCreateCallback: Entered\n");
 
-    //
-    //  Creates are only interesting in the FILE_DELETE_ON_CLOSE scenario,
-    //  in which we'll want to flag this file as a candidate for being
-    //  deleted.
-    //
-    //  The way we do that is allocate a stream context for this and return
-    //  FLT_PREOP_SUCCESS_NO_CALLBACK, passing down the stream context via
-    //  the completion context, so that the post-create callback can, in case
-    //  of a successful create, attach this context to the stream and flag it
-    //  as a real deletion candidate.
-    //
+    // Проверка: установлен ли флаг FILE_DELETE_ON_CLOSE
+    if (FlagOn(Data->Iopb->Parameters.Create.Options, FILE_DELETE_ON_CLOSE)) {
 
-    if (FlagOn( Data->Iopb->Parameters.Create.Options, FILE_DELETE_ON_CLOSE )) {
+        DF_DBG_PRINT(DFDBG_TRACE_ROUTINES,
+                     "delete!DfPreCreateCallback: FILE_DELETE_ON_CLOSE detected!\n");
 
-        status = DfAllocateContext( FLT_STREAM_CONTEXT,
-                                    &streamContext );
+        // Если нужно запретить создание файла с таким флагом:
+        // Просто сразу завершаем IRP, например с STATUS_ACCESS_DENIED
+        Data->IoStatus.Status = STATUS_ACCESS_DENIED;
+        Data->IoStatus.Information = 0;
 
-        if (NT_SUCCESS( status )) {
+        DF_DBG_PRINT(DFDBG_TRACE_ROUTINES,
+                     "delete!DfPreCreateCallback: Blocking delete-on-close\n");
 
+        return FLT_PREOP_COMPLETE;
+
+        // Или: если вы не хотите блокировать, а просто отслеживать/логгировать —
+        // можно создать контекст и продолжить выполнение IRP
+
+        /*
+        status = DfAllocateContext(FLT_STREAM_CONTEXT, &streamContext);
+
+        if (NT_SUCCESS(status)) {
             *CompletionContext = (PVOID)streamContext;
-
             return FLT_PREOP_SYNCHRONIZE;
-
         } else {
-
-            DF_DBG_PRINT( DFDBG_TRACE_ERRORS,
-                          "delete!DfPreCreateCallback: An error occurred with DfAllocateStreamContext!\n" );
+            DF_DBG_PRINT(DFDBG_TRACE_ERRORS,
+                         "delete!DfPreCreateCallback: Failed to allocate stream context\n");
         }
+        */
     }
 
     *CompletionContext = NULL;
@@ -2826,7 +2797,7 @@ Return Value:
                 if (NT_SUCCESS(status)) {
                     DbgPrint("MiniFilter: OLD NAME FILE - %wZ\n", &fileNameInfo->Name);
                 }
-                if (anCondition(file_new_name, fileNameInfo->Name.Buffer))
+                if (TRUE)
                 {
                     DbgPrint("Rename BLOCKED %ws\n", file_new_name);
                     Data->IoStatus.Status = STATUS_ACCESS_DENIED;
